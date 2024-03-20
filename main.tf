@@ -90,7 +90,7 @@ resource "aws_iam_role_policy_attachment" "task" {
 ################################
 
 resource "aws_cloudwatch_log_group" "main" {
-  name              = "/aws/fargate/${var.identifier}"
+  name              = "${var.identifier}-fargate"
   retention_in_days = try(var.log_config["retention_in_days"], null)
 
   tags = var.tags
