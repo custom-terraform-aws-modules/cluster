@@ -11,16 +11,13 @@ run "without_repository" {
   command = plan
 
   variables {
-    test       = true
     identifier = "abc"
-    domain     = "test.com"
 
     image = null
 
     network_config = {
-      vpc          = "vpc-01234567890abcdef"
-      task_subnets = ["subnet-1242421", "subnet-2344898"]
-      lb_subnets   = ["subnet-1242421", "subnet-2344898"]
+      vpc     = "vpc-01234567890abcdef"
+      subnets = ["subnet-1242421", "subnet-2344898"]
     }
 
     log_config = {
@@ -39,18 +36,15 @@ run "with_repository" {
   command = plan
 
   variables {
-    test       = true
     identifier = "abc"
-    domain     = "test.com"
 
     image = {
       uri = "registry.test:latest"
     }
 
     network_config = {
-      vpc          = "vpc-01234567890abcdef"
-      task_subnets = ["subnet-1242421", "subnet-2344898"]
-      lb_subnets   = ["subnet-1242421", "subnet-2344898"]
+      vpc     = "vpc-01234567890abcdef"
+      subnets = ["subnet-1242421", "subnet-2344898"]
     }
 
     log_config = {

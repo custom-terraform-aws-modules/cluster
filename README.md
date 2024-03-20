@@ -21,26 +21,19 @@ This module provides an ECS cluster with Fargate tasks. The module only supports
 
 ## Inputs
 
-| Name            | Description                                                                                             | Type           | Default   | Required |
-| --------------- | ------------------------------------------------------------------------------------------------------- | -------------- | --------- | :------: |
-| identifier      | Unique identifier to differentiate global resources.                                                    | `string`       | n/a       |   yes    |
-| domain          | Custom domain pointed to the load balancer.                                                             | `string`       | n/a       |   yes    |
-| policies        | List of IAM policy ARNs for the Fargate task's IAM role.                                                | `list(string)` | []        |    no    |
-| log_config      | Object to define logging configuration for the Fargate tasks to CloudWatch.                             | `object`       | n/a       |   yes    |
-| image           | Object of the image which will be pulled by the Fargate tasks to execute.                               | `object`       | null      |    no    |
-| security_groups | List of security group IDs the ECS service will hold.                                                   | `list(string)` | []        |    no    |
-| network_config  | Object of definition for the network configuration of the ECS service.                                  | `object`       | n/a       |   yes    |
-| env_variables   | A map of environment variables for the Fargate task at runtime.                                         | `map(string)`  | {}        |    no    |
-| idle_timeout    | Timeout in seconds of how long the load balancer will wait for a response from the containers.          | `number`       | 180       |    no    |
-| container_port  | Port on which the application of the container listens.                                                 | `number`       | 8000      |    no    |
-| health_check    | Route of the application for health checks of the container from the load balancer.                     | `string`       | "/health" |    no    |
-| memory          | Amount of memory in MiB used by each Fargate tasks.                                                     | `number`       | 512       |    no    |
-| cpu             | Number of CPU units used by each Fargate tasks.                                                         | `number`       | 256       |    no    |
-| memory_limit    | Percentage of maximum average memory usage of the Fargate tasks, when the service should get scaled up. | `number`       | 80        |    no    |
-| cpu_limit       | Percentage of maximum average CPU usage of the Fargate tasks, when the service should get scaled up.    | `number`       | 70        |    no    |
-| min_count       | Minimum amount of Fargate tasks running.                                                                | `number`       | 1         |    no    |
-| max_count       | Maximum amount of Fargate tasks running.                                                                | `number`       | 1         |    no    |
-| tags            | A map of tags to add to all resources.                                                                  | `map(string)`  | {}        |    no    |
+| Name               | Description                                                                 | Type           | Default | Required |
+| ------------------ | --------------------------------------------------------------------------- | -------------- | ------- | :------: |
+| identifier         | Unique identifier to differentiate global resources.                        | `string`       | n/a     |   yes    |
+| policies           | List of IAM policy ARNs for the Fargate task's IAM role.                    | `list(string)` | []      |    no    |
+| log_config         | Object to define logging configuration for the Fargate tasks to CloudWatch. | `object`       | n/a     |   yes    |
+| image              | Object of the image which will be pulled by the Fargate tasks to execute.   | `object`       | null    |    no    |
+| security_groups    | List of security group IDs the ECS service will hold.                       | `list(string)` | []      |    no    |
+| network_config     | Object of definition for the network configuration of the ECS service.      | `object`       | n/a     |   yes    |
+| env_variables      | A map of environment variables for the Fargate task at runtime.             | `map(string)`  | {}      |    no    |
+| memory             | Amount of memory in MiB used by each Fargate tasks.                         | `number`       | 512     |    no    |
+| cpu                | Number of CPU units used by each Fargate tasks.                             | `number`       | 256     |    no    |
+| desired_task_count | Preferred number of task that shall run.                                    | `number`       | 1       |    no    |
+| tags               | A map of tags to add to all resources.                                      | `map(string)`  | {}      |    no    |
 
 ### `log_config`
 
@@ -57,11 +50,10 @@ This module provides an ECS cluster with Fargate tasks. The module only supports
 
 ### `network_config`
 
-| Name         | Description                                                                                | Type           | Default | Required |
-| ------------ | ------------------------------------------------------------------------------------------ | -------------- | ------- | :------: |
-| vpc          | The ID of the subnets' VPC.                                                                | `string`       | n/a     |   yes    |
-| task_subnets | The ID of the subnet in which the Fargate tasks live in. (subnets must be located in VPC)  | `list(string)` | n/a     |   yes    |
-| lb_subnets   | The ID of the subnet in which the load balancer lives in. (subnets must be located in VPC) | `list(string)` | n/a     |   yes    |
+| Name    | Description                                                                               | Type           | Default | Required |
+| ------- | ----------------------------------------------------------------------------------------- | -------------- | ------- | :------: |
+| vpc     | The ID of the subnets' VPC.                                                               | `string`       | n/a     |   yes    |
+| subnets | The ID of the subnet in which the Fargate tasks live in. (subnets must be located in VPC) | `list(string)` | n/a     |   yes    |
 
 ## Outputs
 
@@ -83,18 +75,11 @@ This module provides an ECS cluster with Fargate tasks. The module only supports
 module "cluster" {
   source = "github.com/custom-terraform-aws-modules/cluster"
 
-  identifier      = "example-cluster-dev"
-  domain          = "api.example.com"
-  idle_timeout    = 180
-  container_port  = 8000
-  health_check    = "/health"
-  memory          = 512
-  cpu             = 256
-  memory_limit    = 80
-  cpu_limit       = 70
-  min_count       = 1
-  max_count       = 3
-  security_groups = ["sg-woht9328g23", "sg-3429yfwlefhwe"]
+  identifier         = "example-cluster-dev"
+  memory             = 512
+  cpu                = 256
+  desired_task_count = 1
+  security_groups    = ["sg-woht9328g23", "sg-3429yfwlefhwe"]
   policies = [
     "arn:aws:iam::aws:policy/aws-service-role/AccessAnalyzerServiceRolePolicy",
     "arn:aws:iam::aws:policy/AdministratorAccess-Amplify"
@@ -109,9 +94,8 @@ module "cluster" {
   }
 
   network_config = {
-    vpc          = "vpc-01234567890abcdef"
-    task_subnets = ["subnet-1242421", "subnet-2344898"]
-    lb_subnets   = ["subnet-1242421", "subnet-2344898"]
+    vpc     = "vpc-01234567890abcdef"
+    subnets = ["subnet-1242421", "subnet-2344898"]
   }
 
   log_config = {

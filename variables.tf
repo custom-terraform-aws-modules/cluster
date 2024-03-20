@@ -7,11 +7,6 @@ variable "identifier" {
   }
 }
 
-variable "domain" {
-  description = "Custom domain pointed to the load balancer."
-  type        = string
-}
-
 variable "policies" {
   description = "List of IAM policy ARNs for the Fargate task's IAM role."
   type        = list(string)
@@ -58,21 +53,16 @@ variable "security_groups" {
 variable "network_config" {
   description = "Object of definition for the network configuration of the ECS service."
   type = object({
-    vpc          = string
-    task_subnets = list(string)
-    lb_subnets   = list(string)
+    vpc     = string
+    subnets = list(string)
   })
   validation {
     condition     = startswith(try(var.network_config["vpc"], null), "vpc-")
     error_message = "Must be valid VPC ID"
   }
   validation {
-    condition     = !contains([for v in var.network_config["task_subnets"] : startswith(v, "subnet-")], false)
+    condition     = !contains([for v in var.network_config["subnets"] : startswith(v, "subnet-")], false)
     error_message = "Elements in task subnets must be valid subnet IDs"
-  }
-  validation {
-    condition     = !contains([for v in var.network_config["lb_subnets"] : startswith(v, "subnet-")], false)
-    error_message = "Elements in load balancer subnets must be valid subnet IDs"
   }
 }
 
@@ -80,24 +70,6 @@ variable "env_variables" {
   description = "A map of environment variables for the Fargate task at runtime."
   type        = map(string)
   default     = {}
-}
-
-variable "idle_timeout" {
-  description = "Timeout in seconds of how long the load balancer will wait for a response from the containers."
-  type        = number
-  default     = 180
-}
-
-variable "container_port" {
-  description = "Port on which the application of the container listens."
-  type        = number
-  default     = 8000
-}
-
-variable "health_check" {
-  description = "Route of the application for health checks of the container from the load balancer."
-  type        = string
-  default     = "/health"
 }
 
 variable "memory" {
@@ -112,26 +84,8 @@ variable "cpu" {
   default     = 256
 }
 
-variable "memory_limit" {
-  description = "Percentage of maximum average memory usage of the Fargate tasks, when the service should get scaled up."
-  type        = number
-  default     = 80
-}
-
-variable "cpu_limit" {
-  description = "Percentage of maximum average CPU usage of the Fargate tasks, when the service should get scaled up."
-  type        = number
-  default     = 70
-}
-
-variable "min_count" {
-  description = "Minimum amount of Fargate tasks running."
-  type        = number
-  default     = 1
-}
-
-variable "max_count" {
-  description = "Maximum amount of Fargate tasks running."
+variable "desired_task_count" {
+  description = "Preferred number of task that shall run."
   type        = number
   default     = 1
 }
@@ -140,10 +94,4 @@ variable "tags" {
   description = "A map of tags to add to all resources."
   type        = map(string)
   default     = {}
-}
-
-variable "test" {
-  description = "A flag for wether or not creating a test environment to conduct unit tests with."
-  type        = bool
-  default     = false
 }
