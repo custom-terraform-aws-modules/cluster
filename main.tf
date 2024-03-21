@@ -80,10 +80,10 @@ resource "aws_ecs_task_definition" "main" {
   network_mode             = "awsvpc"
   cpu                      = var.cpu
   memory                   = var.memory
-  container_definitions = var.image == null ? jsonencode([{
+  container_definitions = jsonencode([{
     name        = var.identifier
-    image       = "${aws_ecr_repository.main[0].repository_url}:latest"
-    environment = var.env_variables
+    image       = var.image == null ? "${aws_ecr_repository.main[0].repository_url}:latest" : try(var.image["uri"], null)
+    environment = [for k, v in var.env_variables : {name = k, value = v}]
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -92,19 +92,7 @@ resource "aws_ecs_task_definition" "main" {
         awslogs-stream-prefix = "cluster"
       }
     }
-    }]) : jsonencode([{
-    name        = var.identifier
-    image       = try(var.image["uri"], null)
-    environment = var.env_variables
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        awslogs-group         = aws_cloudwatch_log_group.main.id
-        awslogs-region        = try(var.log_config["region"], null)
-        awslogs-stream-prefix = "cluster"
-      }
-    }
-  }])
+    }]) 
 
   tags = var.tags
 }
