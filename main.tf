@@ -113,6 +113,28 @@ resource "aws_iam_role_policy_attachment" "xray" {
 # Security Groups              #
 ################################
 
+resource "aws_security_group" "allow_tls" {
+  name        = "${var.identifier}-allow-tls"
+  description = "Allows TLS inbound traffic."
+  vpc_id      = var.vpc
+
+  tags = var.tags
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ssh" {
+  security_group_id = aws_security_group.allow_tls.id
+  from_port         = 22
+  to_port           = 22
+  ip_protocol       = "tcp"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_egress_rule" "internet_access" {
+  security_group_id = aws_security_group.allow_tls.id
+  ip_protocol       = -1
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
 ################################
 # Kubectl Server               #
 ################################
@@ -129,7 +151,7 @@ resource "aws_instance" "kubectl" {
   instance_type               = "t2.micro"
   associate_public_ip_address = true
   subnet_id                   = var.subnets[0]
-  vpc_security_group_ids      = []
+  vpc_security_group_ids      = [aws_security_group.allow_tls.id]
 
   tags = var.tags
 }
@@ -149,33 +171,29 @@ resource "aws_eks_cluster" "main" {
   tags = var.tags
 }
 
- resource "aws_eks_node_group" "main" {
-    cluster_name    = aws_eks_cluster.main.name
-    node_group_name = var.identifier
-    node_role_arn   = aws_iam_role.worker.arn
-    subnet_ids      = var.subnets
-    capacity_type   = "ON_DEMAND"
-    disk_size       = var.disk_size
-    instance_types  = var.instance_types
+resource "aws_eks_node_group" "main" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = var.identifier
+  node_role_arn   = aws_iam_role.worker.arn
+  subnet_ids      = var.subnets
+  capacity_type   = "ON_DEMAND"
+  disk_size       = var.disk_size
+  instance_types  = var.instance_types
 
-    remote_access {
-      ec2_ssh_key               = aws_key_pair.kubectl.name
-      source_security_group_ids = []
-    }
+  remote_access {
+    ec2_ssh_key               = aws_key_pair.kubectl.name
+    source_security_group_ids = [aws_security_group.allow_tls.id]
+  }
 
-    labels = {
-      env = var.env
-    }
+  scaling_config {
+    desired_size = var.desired_size
+    max_size     = var.max_size
+    min_size     = var.min_size
+  }
 
-    scaling_config {
-      desired_size = var.desired_size
-      max_size     = var.max_size
-      min_size     = var.min_size
-    }
+  update_config {
+    max_unavailable = 1
+  }
 
-    update_config {
-      max_unavailable = 1
-    }
-
-    tags = var.tags
+  tags = var.tags
 }
