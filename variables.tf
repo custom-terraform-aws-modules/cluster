@@ -16,15 +16,6 @@ variable "vpc" {
   }
 }
 
-variable "kubectl_subnet" {
-  description = "The ID of the subnet for the instance which acts as kubectl server."
-  type        = string
-  validation {
-    condition     = startswith(var.kubectl_subnet, "subnet-")
-    error_message = "Kubectl subnet must be a valid subnet ID"
-  }
-}
-
 variable "subnets" {
   description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
   type        = list(string)
@@ -36,11 +27,6 @@ variable "subnets" {
     condition     = !contains([for v in var.subnets : startswith(v, "subnet-")], false)
     error_message = "Elements must be valid subnet IDs"
   }
-}
-
-variable "public_key" {
-  description = "Public SSH key registered to in EC2 instance to tunnel with corresponding private key into it."
-  type        = string
 }
 
 variable "disk_size" {
