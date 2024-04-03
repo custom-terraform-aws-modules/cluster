@@ -20,28 +20,6 @@ resource "aws_iam_role" "master" {
   tags = var.tags
 }
 
-data "aws_iam_policy_document" "console" {
-  statement {
-    effect = "Allow"
-
-    actions = ["eks:AccessKubernetesApi"]
-
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_policy" "console" {
-  name  = "${var.identifier}-WebConsoleEKSMonitoring"
-  policy = data.aws_iam_policy_document.console.json
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "console" {
-  policy_arn = aws_iam_policy.console.arn
-  role       = aws_iam_role.master.name
-}
-
 resource "aws_iam_role_policy_attachment" "cluster" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.master.name
