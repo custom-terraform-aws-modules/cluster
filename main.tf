@@ -110,65 +110,6 @@ resource "aws_iam_role_policy_attachment" "xray" {
 # TODO give IAM permission to read ECR registries and S3 buckets
 
 ################################
-# Security Groups              #
-################################
-
-resource "aws_security_group" "allow_tls" {
-  name        = "${var.identifier}-allow-tls"
-  description = "Allows TLS inbound traffic."
-  vpc_id      = var.vpc
-
-  tags = var.tags
-}
-
-resource "aws_vpc_security_group_ingress_rule" "ssh" {
-  security_group_id = aws_security_group.allow_tls.id
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-  cidr_ipv4         = "0.0.0.0/0"
-}
-
-resource "aws_vpc_security_group_egress_rule" "internet_access" {
-  security_group_id = aws_security_group.allow_tls.id
-  ip_protocol       = -1
-  cidr_ipv4         = "0.0.0.0/0"
-}
-
-################################
-# Kubectl Server               #
-################################
-
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-
-  owners = ["amazon"]
-
-  filter {
-    name   = "image-id"
-    values = ["ami-03484a09b43a06725"]
-  }
-}
-
-resource "aws_key_pair" "kubectl" {
-  key_name   = "${var.identifier}-kubectl"
-  public_key = var.public_key
-
-  tags = var.tags
-}
-
-resource "aws_instance" "kubectl" {
-  ami                         = data.aws_ami.amazon_linux.id
-  key_name                    = aws_key_pair.kubectl.id
-  instance_type               = "t2.micro"
-  associate_public_ip_address = true
-  subnet_id                   = var.kubectl_subnet
-  vpc_security_group_ids      = [aws_security_group.allow_tls.id]
-
-  tags = var.tags
-}
-
-################################
 # EKS Cluster                  #
 ################################
 
@@ -191,11 +132,6 @@ resource "aws_eks_node_group" "main" {
   capacity_type   = "ON_DEMAND"
   disk_size       = var.disk_size
   instance_types  = var.instance_types
-
-  remote_access {
-    ec2_ssh_key               = aws_key_pair.kubectl.id
-    source_security_group_ids = [aws_security_group.allow_tls.id]
-  }
 
   scaling_config {
     desired_size = var.desired_size
