@@ -139,6 +139,17 @@ resource "aws_vpc_security_group_egress_rule" "internet_access" {
 # Kubectl Server               #
 ################################
 
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+
+  owners = ["amazon"]
+
+  filter {
+    name   = "image-id"
+    values = ["ami-03484a09b43a06725"]
+  }
+}
+
 resource "aws_key_pair" "kubectl" {
   key_name   = "${var.identifier}-kubectl"
   public_key = var.public_key
@@ -147,6 +158,7 @@ resource "aws_key_pair" "kubectl" {
 }
 
 resource "aws_instance" "kubectl" {
+  ami                         = data.aws_ami.amazon_linux.id
   key_name                    = aws_key_pair.kubectl.id
   instance_type               = "t2.micro"
   associate_public_ip_address = true

@@ -20,7 +20,7 @@ variable "kubectl_subnet" {
   description = "The ID of the subnet for the instance which acts as kubectl server."
   type        = string
   validation {
-    condition     =  startswith(var.kubectl_subnet, "subnet-")
+    condition     = startswith(var.kubectl_subnet, "subnet-")
     error_message = "Kubectl subnet must be a valid subnet ID"
   }
 }
@@ -57,20 +57,20 @@ variable "instance_types" {
 
 variable "desired_size" {
   description = "Desired amount of nodes in the node group."
-  type= number
-  default = 1
+  type        = number
+  default     = 1
 }
 
 variable "min_size" {
   description = "Minimum amount of nodes in the node group."
-  type= number
-  default = 1
+  type        = number
+  default     = 1
 }
 
 variable "max_size" {
   description = "Maximum amount of nodes in the node group."
-  type= number
-  default = 1
+  type        = number
+  default     = 1
 }
 
 variable "tags" {
