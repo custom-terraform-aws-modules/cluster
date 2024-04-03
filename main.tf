@@ -147,7 +147,7 @@ resource "aws_key_pair" "kubectl" {
 }
 
 resource "aws_instance" "kubectl" {
-  key_name                    = aws_key_pair.kubectl.name
+  key_name                    = aws_key_pair.kubectl.id
   instance_type               = "t2.micro"
   associate_public_ip_address = true
   subnet_id                   = var.kubectl_subnet
@@ -181,7 +181,7 @@ resource "aws_eks_node_group" "main" {
   instance_types  = var.instance_types
 
   remote_access {
-    ec2_ssh_key               = aws_key_pair.kubectl.name
+    ec2_ssh_key               = aws_key_pair.kubectl.id
     source_security_group_ids = [aws_security_group.allow_tls.id]
   }
 
