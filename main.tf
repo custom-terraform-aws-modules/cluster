@@ -150,7 +150,7 @@ resource "aws_instance" "kubectl" {
   key_name                    = aws_key_pair.kubectl.name
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  subnet_id                   = var.subnets[0]
+  subnet_id                   = var.kubectl_subnet
   vpc_security_group_ids      = [aws_security_group.allow_tls.id]
 
   tags = var.tags

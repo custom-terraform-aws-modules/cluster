@@ -16,6 +16,15 @@ variable "vpc" {
   }
 }
 
+variable "kubectl_subnet" {
+  description = "The ID of the subnet for the instance which acts as kubectl server."
+  type        = string
+  validation {
+    condition     =  startswith(var.kubectl_subnet, "subnet-")
+    error_message = "Kubectl subnet must be a valid subnet ID"
+  }
+}
+
 variable "subnets" {
   description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
   type        = list(string)
