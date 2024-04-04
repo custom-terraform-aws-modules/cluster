@@ -66,6 +66,15 @@ variable "max_size" {
   default     = 1
 }
 
+vairable "pod_roles" {
+  description = "A list of objects which define IAM roles which can be assumed by pods via ServiceAccounts."
+  type = list(object({
+    identifier = string
+    policies = list(string)
+  }))
+  default = []
+}
+
 variable "tags" {
   description = "A map of tags to add to all resources."
   type        = map(string)
