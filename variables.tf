@@ -13,15 +13,6 @@ variable "version" {
   default     = "1.29"
 }
 
-variable "vpc" {
-  description = "ID of the subnets' VPC."
-  type        = string
-  validation {
-    condition     = startswith(var.vpc, "vpc-")
-    error_message = "Must be valid VPC ID"
-  }
-}
-
 variable "subnets" {
   description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
   type        = list(string)
@@ -40,7 +31,7 @@ variable "security_groups" {
   type        = list(string)
 
   validation {
-    condition     = !contains([for v in var.subnets : startswith(v, "sg-")], false)
+    condition     = !contains([for v in var.security_groups : startswith(v, "sg-")], false)
     error_message = "Elements must be valid security group IDs"
   }
 }
