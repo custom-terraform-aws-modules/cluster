@@ -1,114 +1,151 @@
 ################################
-# IAM Roles                    #
+# Master IAM Roles             #
 ################################
 
-data "aws_iam_policy_document" "assume_role" {
+data "aws_iam_policy_document" "master" {
   statement {
     actions = ["sts:AssumeRole"]
 
     principals {
       type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
+      identifiers = ["eks.amazonaws.com"]
     }
   }
 }
 
-resource "aws_iam_role" "execution" {
-  name               = "${var.identifier}-ServiceRoleForECSExecution"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+resource "aws_iam_role" "master" {
+  name               = "${var.identifier}-ServiceRoleForEKSMaster"
+  assume_role_policy = data.aws_iam_policy_document.master.json
 
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "execution" {
-  role       = aws_iam_role.execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+resource "aws_iam_role_policy_attachment" "cluster" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.master.name
 }
 
-resource "aws_iam_role" "task" {
-  name               = "${var.identifier}-ServiceRoleForECSTask"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
-
-  tags = var.tags
+resource "aws_iam_role_policy_attachment" "service" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+  role       = aws_iam_role.master.name
 }
 
-resource "aws_iam_role_policy_attachment" "task" {
-  count      = length(var.policies)
-  role       = aws_iam_role.task.name
-  policy_arn = var.policies[count.index]
+resource "aws_iam_role_policy_attachment" "controller" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+  role       = aws_iam_role.master.name
 }
 
 ################################
-# CloudWatch                   #
+# Worker IAM Roles             #
 ################################
 
-resource "aws_cloudwatch_log_group" "main" {
-  name              = "${var.identifier}-fargate"
-  retention_in_days = try(var.log_config["retention_in_days"], null)
+data "aws_iam_policy_document" "worker" {
+  statement {
+    actions = ["sts:AssumeRole"]
 
-  tags = var.tags
-}
-
-################################
-# ECR Repository               #
-################################
-
-resource "aws_ecr_repository" "main" {
-  count                = var.image == null ? 1 : 0
-  name                 = "${var.identifier}-cluster"
-  image_tag_mutability = "MUTABLE"
-  force_delete         = true
-
-  tags = var.tags
-}
-
-################################
-# ECS Cluster                  #
-################################
-
-resource "aws_ecs_cluster" "main" {
-  name = var.identifier
-
-  tags = var.tags
-}
-
-resource "aws_ecs_task_definition" "main" {
-  family                   = var.identifier
-  requires_compatibilities = ["FARGATE"]
-  execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
-  network_mode             = "awsvpc"
-  cpu                      = var.cpu
-  memory                   = var.memory
-  container_definitions = jsonencode([{
-    name        = var.identifier
-    image       = var.image == null ? "${aws_ecr_repository.main[0].repository_url}:latest" : try(var.image["uri"], null)
-    environment = [for k, v in var.env_variables : {name = k, value = v}]
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        awslogs-group         = aws_cloudwatch_log_group.main.id
-        awslogs-region        = try(var.log_config["region"], null)
-        awslogs-stream-prefix = "cluster"
-      }
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
-    }]) 
+  }
+}
+
+resource "aws_iam_role" "worker" {
+  name               = "${var.identifier}-ServiceRoleForEKSWorker"
+  assume_role_policy = data.aws_iam_policy_document.worker.json
 
   tags = var.tags
 }
 
-resource "aws_ecs_service" "main" {
-  name                 = var.identifier
-  cluster              = aws_ecs_cluster.main.id
-  task_definition      = aws_ecs_task_definition.main.arn
-  launch_type          = "FARGATE"
-  desired_count        = var.desired_task_count
-  force_new_deployment = true
+data "aws_iam_policy_document" "autoscaling" {
+  statement {
+    effect = "Allow"
 
-  network_configuration {
-    subnets          = try(var.network_config["subnets"], null)
-    assign_public_ip = false
-    security_groups  = var.security_groups
+    actions = [
+      "autoscaling:DescribeAutoScalingGroups",
+      "autoscaling:DescribeAutoScalingInstances",
+      "autoscaling:DescribeTags",
+      "autoscaling:DescribeLaunchConfigurations",
+      "autoscaling:SetDesiredCapacity",
+      "autoscaling:TerminateInstanceInAutoScalingGroup",
+      "ec2:DescribeLaunchTemplateVersions"
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "autoscaling" {
+  name   = "ed-eks-autoscaler-policy"
+  policy = data.aws_iam_policy_document.autoscaling.json
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "autoscaling" {
+  policy_arn = aws_iam_policy.autoscaling.arn
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "worker_node" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "network_interface" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "ecr" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "ssm" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "xray" {
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+  role       = aws_iam_role.worker.name
+}
+
+# TODO give IAM permission to read ECR registries and S3 buckets
+
+################################
+# EKS Cluster                  #
+################################
+
+resource "aws_eks_cluster" "main" {
+  name     = var.identifier
+  role_arn = aws_iam_role.master.arn
+
+  vpc_config {
+    subnet_ids = var.subnets
+  }
+
+  tags = var.tags
+}
+
+resource "aws_eks_node_group" "main" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = var.identifier
+  node_role_arn   = aws_iam_role.worker.arn
+  subnet_ids      = var.subnets
+  capacity_type   = "ON_DEMAND"
+  disk_size       = var.disk_size
+  instance_types  = var.instance_types
+
+  scaling_config {
+    desired_size = var.desired_size
+    max_size     = var.max_size
+    min_size     = var.min_size
+  }
+
+  update_config {
+    max_unavailable = 1
   }
 
   tags = var.tags

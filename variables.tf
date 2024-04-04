@@ -7,85 +7,54 @@ variable "identifier" {
   }
 }
 
-variable "policies" {
-  description = "List of IAM policy ARNs for the Fargate task's IAM role."
-  type        = list(string)
-  default     = []
-}
-
-variable "log_config" {
-  description = "Object to define logging configuration for the Fargate tasks to CloudWatch."
-  type = object({
-    region            = string
-    retention_in_days = number
-  })
+variable "vpc" {
+  description = "ID of the subnets' VPC."
+  type        = string
   validation {
-    condition = try(var.log_config["retention_in_days"], 1) == 1 || (
-      try(var.log_config["retention_in_days"], 3) == 3) || (
-      try(var.log_config["retention_in_days"], 5) == 5) || (
-      try(var.log_config["retention_in_days"], 7) == 7) || (
-      try(var.log_config["retention_in_days"], 14) == 14) || (
-      try(var.log_config["retention_in_days"], 30) == 30) || (
-      try(var.log_config["retention_in_days"], 365) == 365) || (
-    try(var.log_config["retention_in_days"], 0) == 0)
-    error_message = "Retention in days must be one of these values: 0, 1, 3, 5, 7, 14, 30, 365"
-  }
-}
-
-variable "image" {
-  description = "Object of the image which will be pulled by the Fargate tasks to execute."
-  type = object({
-    uri = string
-  })
-  default = null
-}
-
-variable "security_groups" {
-  description = "List of security group IDs the ECS service will hold."
-  type        = list(string)
-  default     = []
-  validation {
-    condition     = !contains([for v in var.security_groups : startswith(v, "sg-")], false)
-    error_message = "Elements must be valid security group IDs"
-  }
-}
-
-variable "network_config" {
-  description = "Object of definition for the network configuration of the ECS service."
-  type = object({
-    vpc     = string
-    subnets = list(string)
-  })
-  validation {
-    condition     = startswith(try(var.network_config["vpc"], null), "vpc-")
+    condition     = startswith(var.vpc, "vpc-")
     error_message = "Must be valid VPC ID"
   }
+}
+
+variable "subnets" {
+  description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
+  type        = list(string)
   validation {
-    condition     = !contains([for v in var.network_config["subnets"] : startswith(v, "subnet-")], false)
-    error_message = "Elements in task subnets must be valid subnet IDs"
+    condition     = length(var.subnets) > 1
+    error_message = "List of subnets must contain at least 2 elements"
+  }
+  validation {
+    condition     = !contains([for v in var.subnets : startswith(v, "subnet-")], false)
+    error_message = "Elements must be valid subnet IDs"
   }
 }
 
-variable "env_variables" {
-  description = "A map of environment variables for the Fargate task at runtime."
-  type        = map(string)
-  default     = {}
-}
-
-variable "memory" {
-  description = "Amount of memory in MiB used by each Fargate tasks."
+variable "disk_size" {
+  description = "Disk size in GiB of the node group."
   type        = number
-  default     = 512
+  default     = 20
 }
 
-variable "cpu" {
-  description = "Number of CPU units used by each Fargate tasks."
+variable "instance_types" {
+  description = "Types of the instances in the node group."
+  type        = list(string)
+  default     = ["t3.small"]
+}
+
+variable "desired_size" {
+  description = "Desired amount of nodes in the node group."
   type        = number
-  default     = 256
+  default     = 1
 }
 
-variable "desired_task_count" {
-  description = "Preferred number of task that shall run."
+variable "min_size" {
+  description = "Minimum amount of nodes in the node group."
+  type        = number
+  default     = 1
+}
+
+variable "max_size" {
+  description = "Maximum amount of nodes in the node group."
   type        = number
   default     = 1
 }
