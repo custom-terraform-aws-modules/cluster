@@ -7,7 +7,7 @@ variable "identifier" {
   }
 }
 
-variable "version" {
+variable "kubernetes_version" {
   description = "The Kubernetes version the cluster runs on."
   type        = string
   default     = "1.29"
