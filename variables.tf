@@ -7,6 +7,12 @@ variable "identifier" {
   }
 }
 
+variable "version" {
+  description = "The Kubernetes version the cluster runs on."
+  type        = string
+  default     = "1.29"
+}
+
 variable "vpc" {
   description = "ID of the subnets' VPC."
   type        = string
@@ -20,12 +26,22 @@ variable "subnets" {
   description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
   type        = list(string)
   validation {
-    condition     = length(var.subnets) > 1
-    error_message = "List of subnets must contain at least 2 elements"
+    condition     = length(var.subnets) > 0
+    error_message = "List of subnets must contain at least one element"
   }
   validation {
     condition     = !contains([for v in var.subnets : startswith(v, "subnet-")], false)
     error_message = "Elements must be valid subnet IDs"
+  }
+}
+
+variable "security_groups" {
+  description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
+  type        = list(string)
+
+  validation {
+    condition     = !contains([for v in var.subnets : startswith(v, "sg-")], false)
+    error_message = "Elements must be valid security group IDs"
   }
 }
 

@@ -119,11 +119,14 @@ resource "aws_iam_role_policy_attachment" "xray" {
 ################################
 
 resource "aws_eks_cluster" "main" {
-  name     = var.identifier
-  role_arn = aws_iam_role.master.arn
+  name                      = var.identifier
+  version                   = var.version
+  role_arn                  = aws_iam_role.master.arn
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   vpc_config {
-    subnet_ids = var.subnets
+    subnet_ids         = var.subnets
+    security_group_ids = var.security_groups
   }
 
   tags = var.tags
