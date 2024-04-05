@@ -138,8 +138,8 @@ resource "aws_eks_node_group" "main" {
   subnet_ids      = var.node_groups[count.index]["subnets"]
 
   launch_template {
-    id      = var.node_groups[count.index]["launch_template"]["id"]
-    version = var.node_groups[count.index]["launch_template"]["version"]
+    id      = var.node_groups[count.index]["launch_template"]
+    version = "$Latest"
   }
 
   scaling_config {
@@ -205,6 +205,8 @@ resource "aws_iam_role" "main" {
   count              = length(var.service_accounts)
   assume_role_policy = data.aws_iam_policy_document.main[count.index].json
   name               = var.service_accounts[count.index]["iam_role_name"]
+
+  tags = var.tags
 }
 
 # map each policy to it's role from tree like objects
