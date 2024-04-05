@@ -10,7 +10,7 @@ variable "identifier" {
 variable "kubernetes_version" {
   description = "The Kubernetes version the cluster runs on."
   type        = string
-  default     = "1.29"
+  default     = null
 }
 
 variable "subnets" {
@@ -66,12 +66,13 @@ variable "max_size" {
   default     = 1
 }
 
-variable "pod_roles" {
-  description = "A list of objects which define IAM roles which can be assumed by pods via ServiceAccounts."
+variable "service_accounts" {
+  description = "A list of objects to create IAM roles which are automatically mapped to ServiceAccounts inside Kubernetes."
   type = list(object({
-    identifier      = string
-    policies        = list(string)
+    name_space      = string
     service_account = string
+    iam_role_name   = string
+    policies        = list(string)
   }))
   default = []
 }
