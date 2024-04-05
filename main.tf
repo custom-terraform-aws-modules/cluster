@@ -252,6 +252,7 @@ resource "kubernetes_service_account" "main" {
 ################################
 
 # how to setup the controller: https://www.youtube.com/watch?v=ZfjpWOC5eoE
+# alternatives explained: https://www.youtube.com/watch?v=RQbc_Yjb9ls
 
 data "aws_iam_policy_document" "albc" {
   statement {
