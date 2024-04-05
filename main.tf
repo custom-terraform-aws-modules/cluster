@@ -76,7 +76,7 @@ data "aws_iam_policy_document" "autoscaling" {
 }
 
 resource "aws_iam_policy" "autoscaling" {
-  name   = "ed-eks-autoscaler-policy"
+  name   = "${var.identifier}-EKSWokerAutoscaling"
   policy = data.aws_iam_policy_document.autoscaling.json
 
   tags = var.tags
@@ -165,10 +165,6 @@ resource "aws_eks_node_group" "main" {
   tags = var.tags
 }
 
-################################
-# IAM Roles for Pods           #
-################################
-
 # OIDC provider to map IAM roles to kubernetes service accounts
 data "tls_certificate" "main" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
@@ -180,7 +176,10 @@ resource "aws_iam_openid_connect_provider" "main" {
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
 
-# creating the IAM roles
+################################
+# IAM Roles for Pods           #
+################################
+
 data "aws_iam_policy_document" "main" {
   count = length(var.service_accounts)
 
@@ -245,5 +244,91 @@ resource "kubernetes_service_account" "main" {
     annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.main[count.index].arn
     }
+  }
+}
+
+################################
+# AWS Load Balancer Controller #
+################################
+
+# how to setup the controller: https://www.youtube.com/watch?v=ZfjpWOC5eoE
+
+data "aws_iam_policy_document" "albc" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_iam_openid_connect_provider.main.url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+    }
+
+    principals {
+      identifiers = [aws_iam_openid_connect_provider.main.arn]
+      type        = "Federated"
+    }
+  }
+}
+
+resource "aws_iam_role" "albc" {
+  assume_role_policy = data.aws_iam_policy_document.albc.json
+  name = "${var.identifier}-RoleForAWSLoadBalancerController"
+
+  tags = var.tags
+}
+
+resource "aws_iam_policy" "albc" {
+  # got the IAM policy JSON file from the following repo:
+  # https://github.com/kubernetes-sigs/aws-load-balancer-controller/blob/v2.7.2/docs/install/iam_policy.json
+  policy = file("./AWSLoadBalancerController.json")
+  name = "${var.identifier}-AWSLoadBalancerController"
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "albc" {
+    role = aws_iam_role.albc.name
+    policy_arn = aws_iam_policy.albc.arn
+}
+
+provider "helm" {
+  kubernetes {
+    host = aws_eks_cluster.main.endpoint
+    cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      args = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.id]
+      command = "aws"
+    }
+  }
+}
+
+resource "helm_release" "albc" {
+  name = "aws-load-balancer-controller"
+
+  repository = "https://aws.github.io/eks-charts"
+  chart = "aws-load-balancer-controller"
+  namespace = "kube-system"
+  version = "v1.7.2"
+
+  set {
+    name  = "clusterName"
+    value = aws_eks_cluster.main.id
+  }
+
+  set {
+    name  = "image.tag"
+    value = "v2.7.2"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "aws-load-balancer-controller"
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.albc.arn
   }
 }
