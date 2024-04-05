@@ -14,7 +14,7 @@ variable "kubernetes_version" {
 }
 
 variable "subnets" {
-  description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
+  description = "A list of subnet IDs for the managed master nodes to run."
   type        = list(string)
   validation {
     condition     = length(var.subnets) > 0
@@ -27,7 +27,7 @@ variable "subnets" {
 }
 
 variable "security_groups" {
-  description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
+  description = "A list of security group IDs to be applied to the entire cluster."
   type        = list(string)
   default     = []
   validation {
@@ -36,34 +36,25 @@ variable "security_groups" {
   }
 }
 
-variable "disk_size" {
-  description = "Disk size in GiB of the node group."
-  type        = number
-  default     = 20
-}
-
-variable "instance_types" {
-  description = "Types of the instances in the node group."
-  type        = list(string)
-  default     = ["t3.small"]
-}
-
-variable "desired_size" {
-  description = "Desired amount of nodes in the node group."
-  type        = number
-  default     = 1
-}
-
-variable "min_size" {
-  description = "Minimum amount of nodes in the node group."
-  type        = number
-  default     = 1
-}
-
-variable "max_size" {
-  description = "Maximum amount of nodes in the node group."
-  type        = number
-  default     = 1
+variable "node_groups" {
+  description = "A list of objects to define a group of worker nodes inside the cluster."
+  type = list(object({
+    identifier   = string
+    subnets      = list(string)
+    desired_size = optional(number, 1)
+    min_size     = optional(number, 1)
+    max_size     = optional(number, 1)
+    launch_template = object({
+      id      = string
+      version = optional(string, "$Latest")
+    })
+    taints = optional(list(object({
+      key    = string
+      value  = string
+      effect = string
+    })), [])
+  }))
+  default = []
 }
 
 variable "service_accounts" {

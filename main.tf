@@ -131,22 +131,35 @@ resource "aws_eks_cluster" "main" {
 }
 
 resource "aws_eks_node_group" "main" {
+  count           = length(var.node_groups)
   cluster_name    = aws_eks_cluster.main.name
-  node_group_name = var.identifier
+  node_group_name = var.node_groups[count.index]["identifier"]
   node_role_arn   = aws_iam_role.worker.arn
-  subnet_ids      = var.subnets
-  capacity_type   = "ON_DEMAND"
-  disk_size       = var.disk_size
-  instance_types  = var.instance_types
+  subnet_ids      = var.node_groups[count.index]["subnets"]
 
-  scaling_config {
-    desired_size = var.desired_size
-    max_size     = var.max_size
-    min_size     = var.min_size
+  launch_template {
+    id      = var.node_groups[count.index]["launch_template"]["id"]
+    version = var.node_groups[count.index]["launch_template"]["version"]
   }
 
-  update_config {
-    max_unavailable = 1
+  scaling_config {
+    desired_size = var.node_groups[count.index]["desired_size"]
+    min_size     = var.node_groups[count.index]["min_size"]
+    max_size     = var.node_groups[count.index]["max_size"]
+  }
+
+  # ignore changes made by autoscaling to desired_size
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
+
+  dynamic "taint" {
+    for_each = var.node_groups[count.index]["taints"]
+    content {
+      key    = taint.value["key"]
+      value  = taint.value["value"]
+      effect = taint.value["effect"]
+    }
   }
 
   tags = var.tags
