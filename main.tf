@@ -164,11 +164,13 @@ data "tls_certificate" "main" {
 resource "aws_iam_openid_connect_provider" "main" {
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.main.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
 
 # creating the IAM roles
 data "aws_iam_policy_document" "main" {
+  count = length(var.pod_roles)
+
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
@@ -176,7 +178,7 @@ data "aws_iam_policy_document" "main" {
     condition {
       test     = "StringEquals"
       variable = "${replace(aws_iam_openid_connect_provider.main.url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:aws-node"]
+      values   = ["system:serviceaccount:${var.pod_roles[count.index]["service_account"]}"]
     }
 
     principals {
@@ -188,14 +190,14 @@ data "aws_iam_policy_document" "main" {
 
 resource "aws_iam_role" "main" {
   count              = length(var.pod_roles)
-  assume_role_policy = data.aws_iam_policy_document.main.json
+  assume_role_policy = data.aws_iam_policy_document.main[count.index].json
   name               = var.pod_roles[count.index]["identifier"]
 }
 
 # map each policy to it's role from hierarchical objects
 locals {
-  policy_mapping = flatten([for v in var.pod_roles : [for w in v["policies"] : {
-    role       = v["identifier"],
+  policy_mapping = flatten([for i, v in var.pod_roles : [for w in v["policies"] : {
+    role       = aws_iam_role.main[i].name,
     policy_arn = w
   }]])
 }
@@ -204,29 +206,4 @@ resource "aws_iam_role_policy_attachment" "main" {
   count      = length(local.policy_mapping)
   role       = local.policy_mapping[count.index]["role"]
   policy_arn = local.policy_mapping[count.index]["policy_arn"]
-}
-
-# Kubernetes provider to create ServiceAccounts inside the EKS cluster
-provider "kubernetes" {
-  host                   = aws_eks_cluster.main.endpoint
-  cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    args        = ["eks", "get-token", "--cluster-name", var.identifier]
-    command     = "aws"
-  }
-}
-
-# map each created IAM role to a ServiceAccount in Kubernetes
-resource "kubernetes_service_account" "main" {
-  count = length(var.pod_roles)
-
-  metadata {
-    name      = var.pod_roles
-    namespace = "default"
-    annotations = {
-      "eks.amazonaws.com/role-arn" = aws_iam_role.iam_role_test.arn
-    }
-  }
 }

@@ -29,7 +29,7 @@ variable "subnets" {
 variable "security_groups" {
   description = "A list of IDs of subnets for the subnet group and potentially the RDS proxy."
   type        = list(string)
-
+  default     = []
   validation {
     condition     = !contains([for v in var.security_groups : startswith(v, "sg-")], false)
     error_message = "Elements must be valid security group IDs"
@@ -66,11 +66,12 @@ variable "max_size" {
   default     = 1
 }
 
-vairable "pod_roles" {
+variable "pod_roles" {
   description = "A list of objects which define IAM roles which can be assumed by pods via ServiceAccounts."
   type = list(object({
-    identifier = string
-    policies = list(string)
+    identifier      = string
+    policies        = list(string)
+    service_account = string
   }))
   default = []
 }
