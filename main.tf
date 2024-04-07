@@ -274,7 +274,7 @@ data "aws_iam_policy_document" "albc" {
 
 resource "aws_iam_role" "albc" {
   assume_role_policy = data.aws_iam_policy_document.albc.json
-  name = "${var.identifier}-RoleForAWSLoadBalancerController"
+  name               = "${var.identifier}-RoleForAWSLoadBalancerController"
 
   tags = var.tags
 }
@@ -282,25 +282,25 @@ resource "aws_iam_role" "albc" {
 resource "aws_iam_policy" "albc" {
   # got the IAM policy JSON file from the following repo:
   # https://github.com/kubernetes-sigs/aws-load-balancer-controller/blob/v2.7.2/docs/install/iam_policy.json
-  policy = file("./AWSLoadBalancerController.json")
-  name = "${var.identifier}-AWSLoadBalancerController"
+  policy = local.albc_policy
+  name   = "${var.identifier}-AWSLoadBalancerController"
 
   tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "albc" {
-    role = aws_iam_role.albc.name
-    policy_arn = aws_iam_policy.albc.arn
+  role       = aws_iam_role.albc.name
+  policy_arn = aws_iam_policy.albc.arn
 }
 
 provider "helm" {
   kubernetes {
-    host = aws_eks_cluster.main.endpoint
+    host                   = aws_eks_cluster.main.endpoint
     cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
-      args = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.id]
-      command = "aws"
+      args        = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.id]
+      command     = "aws"
     }
   }
 }
@@ -309,9 +309,9 @@ resource "helm_release" "albc" {
   name = "aws-load-balancer-controller"
 
   repository = "https://aws.github.io/eks-charts"
-  chart = "aws-load-balancer-controller"
-  namespace = "kube-system"
-  version = "v1.7.2"
+  chart      = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  version    = "v1.7.2"
 
   set {
     name  = "clusterName"
@@ -332,4 +332,12 @@ resource "helm_release" "albc" {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.albc.arn
   }
+}
+
+# set tags on provided load balancer subnets for the controller to know where to place the load balancer
+resource "aws_ec2_tag" "main" {
+  count       = length(var.lb_subnets)
+  resource_id = var.lb_subnets[count.index]
+  key         = "kubernetes.io/role/elb"
+  value       = "1"
 }

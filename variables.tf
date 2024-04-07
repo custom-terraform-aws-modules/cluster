@@ -14,12 +14,18 @@ variable "kubernetes_version" {
 }
 
 variable "subnets" {
-  description = "A list of subnet IDs for the managed master nodes to run."
+  description = "A list of subnet IDs for the EKS cluster to be placed in."
   type        = list(string)
   validation {
     condition     = length(var.subnets) > 0
     error_message = "List of subnets must contain at least one element"
   }
+}
+
+variable "lb_subnets" {
+  description = "A list of subnet IDs for the application load balancer to be placed in by the AWS Load Balancer Controller inside Kubernetes."
+  type        = list(string)
+  default     = []
 }
 
 variable "security_groups" {
@@ -78,7 +84,7 @@ variable "service_accounts" {
   }))
   default = []
   validation {
-    condition     =  length(toset([for v in var.service_accounts : "${v["name_space"]}:${v["service_account"]}"])) == length(var.service_accounts)
+    condition     = length(toset([for v in var.service_accounts : "${v["name_space"]}:${v["service_account"]}"])) == length(var.service_accounts)
     error_message = "Name space with service account name must be unique"
   }
   validation {
