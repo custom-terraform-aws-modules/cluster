@@ -148,11 +148,6 @@ resource "aws_eks_node_group" "main" {
     max_size     = var.node_groups[count.index]["max_size"]
   }
 
-  # ignore changes made by autoscaling to desired_size
-  lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]
-  }
-
   dynamic "taint" {
     for_each = var.node_groups[count.index]["taints"]
     content {
@@ -174,6 +169,31 @@ resource "aws_iam_openid_connect_provider" "main" {
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.main.certificates[0].sha1_fingerprint]
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+# Kubernetes provider to create ServiceAccounts from this Terraform setup
+provider "kubernetes" {
+  host                   = aws_eks_cluster.main.endpoint
+  cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    args        = ["eks", "get-token", "--cluster-name", var.identifier]
+    command     = "aws"
+  }
+}
+
+# Helm provider to create controllers for load balancing and logging this Terraform setup
+provider "helm" {
+  kubernetes {
+    host                   = aws_eks_cluster.main.endpoint
+    cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      args        = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.id]
+      command     = "aws"
+    }
+  }
 }
 
 ################################
@@ -222,19 +242,8 @@ resource "aws_iam_role_policy_attachment" "main" {
   policy_arn = local.policy_mapping[count.index]["policy_arn"]
 }
 
-# Kubernetes provider to create ServiceAccounts inside the EKS cluster
-provider "kubernetes" {
-  host                   = aws_eks_cluster.main.endpoint
-  cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    args        = ["eks", "get-token", "--cluster-name", var.identifier]
-    command     = "aws"
-  }
-}
-
 # create a ServiceAccount inside Kubernetes mapped to an IAM role for each role
+# kubernetes provider used to create this resource
 resource "kubernetes_service_account" "main" {
   count = length(var.service_accounts)
 
@@ -293,18 +302,7 @@ resource "aws_iam_role_policy_attachment" "albc" {
   policy_arn = aws_iam_policy.albc.arn
 }
 
-provider "helm" {
-  kubernetes {
-    host                   = aws_eks_cluster.main.endpoint
-    cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
-    exec {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      args        = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.id]
-      command     = "aws"
-    }
-  }
-}
-
+# helm provider used to create this resource
 resource "helm_release" "albc" {
   name = "aws-load-balancer-controller"
 
@@ -340,4 +338,98 @@ resource "aws_ec2_tag" "main" {
   resource_id = var.lb_subnets[count.index]
   key         = "kubernetes.io/role/elb"
   value       = "1"
+}
+
+################################
+# FluentBit CloudWatch Logging #
+################################
+
+# great tutorial: https://www.youtube.com/watch?v=E_P4EqJQ-T0
+
+data "aws_iam_policy_document" "assume_log" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_iam_openid_connect_provider.main.url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:logs:fluentbit-sa"]
+    }
+
+    principals {
+      identifiers = [aws_iam_openid_connect_provider.main.arn]
+      type        = "Federated"
+    }
+  }
+}
+
+resource "aws_iam_role" "log" {
+  assume_role_policy = data.aws_iam_policy_document.assume_log.json
+  name               = "${var.identifier}-RoleForFluentBit"
+
+  tags = var.tags
+}
+
+data "aws_iam_policy_document" "log" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "logs:PutLogEvents",
+      "logs:Describe*",
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutRetentionPolicy"
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "log" {
+  policy = data.aws_iam_policy_document.log.json
+  name   = "${var.identifier}-FluentBitCloudWatch"
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "log" {
+  role       = aws_iam_role.log.name
+  policy_arn = aws_iam_policy.log.arn
+}
+
+# kubernetes provider used to create this resource
+resource "kubernetes_namespace" "log" {
+  metadata {
+    name = "logs"
+  }
+}
+
+# kubernetes provider used to create this resource
+resource "kubernetes_service_account" "log" {
+  metadata {
+    name      = "fluentbit-sa"
+    namespace = kubernetes_namespace.log.id
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.log.arn
+    }
+  }
+
+  automount_service_account_token = true
+}
+
+resource "helm_release" "log" {
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-for-fluent-bit"
+  version    = "0.1.32" # https://artifacthub.io/packages/helm/aws/aws-for-fluent-bit
+  name       = "aws-fluent-bit"
+  namespace  = kubernetes_namespace.log.id
+
+  values = [
+    templatefile("./aws-fluentbit.tpl", {
+      logGroupName = "${var.identifier}-fluentbit"
+      region       = var.region
+    })
+  ]
 }
