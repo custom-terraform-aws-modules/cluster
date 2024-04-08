@@ -371,32 +371,9 @@ resource "aws_iam_role" "log" {
   tags = var.tags
 }
 
-data "aws_iam_policy_document" "log" {
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "logs:PutLogEvents",
-      "logs:Describe*",
-      "logs:CreateLogStream",
-      "logs:CreateLogGroup",
-      "logs:PutRetentionPolicy"
-    ]
-
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_policy" "log" {
-  policy = data.aws_iam_policy_document.log.json
-  name   = "${var.identifier}-FluentBitCloudWatch"
-
-  tags = var.tags
-}
-
 resource "aws_iam_role_policy_attachment" "log" {
   role       = aws_iam_role.log.name
-  policy_arn = aws_iam_policy.log.arn
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
 # kubernetes provider used to create this resource
@@ -426,10 +403,47 @@ resource "helm_release" "log" {
   name       = "aws-fluent-bit"
   namespace  = kubernetes_namespace.log.id
 
+  set {
+    name  = "serviceAccount.name"
+    value = "fluentbit-sa"
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "false"
+  }
+
+  set {
+    name  = "cloudWatchLogs.region"
+    value = var.region
+  }
+
+  set {
+    name  = "cloudWatchLogs.logGroupTemplate"
+    value = "/aws/eks/${aws_eks_cluster.main.id}/$(kubernetes['labels']['app.kubernetes.io/name'])"
+  }
+
+  set {
+    name = "cloudWatchLogs.logRetentionDays"
+    value = "7"
+  }
+
+  set {
+    name  = "firehose.enabled"
+    value = false
+  }
+
+  set {
+    name  = "kinesis.enabled"
+    value = false
+  }
+
+  set {
+    name  = "elasticsearch.enabled"
+    value = false
+  }
+
   values = [
-    templatefile("./aws-fluentbit.tpl", {
-      logGroupName = "${var.identifier}-fluentbit"
-      region       = var.region
-    })
+    yamlencode({})
   ]
 }
